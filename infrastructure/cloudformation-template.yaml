@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Tech Challenge B3 - Pipeline completo de dados da B3'
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: 'tech-challenge-b3-bigdata'
+    Description: 'Nome do bucket S3 (deve ser único)'
+
+Resources:
+  # S3 Bucket para armazenar dados raw e refined
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt TriggerLambdaFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: 'raw/'
+                  - Name: suffix
+                    Value: '.parquet'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # IAM Role para Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: GlueJobStartPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - glue:StartJobRun
+                  - glue:GetJobRun
+                  - glue:GetJobRuns
+                Resource: '*'
+
+  # Lambda Function para trigger do Glue Job
+  TriggerLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: 'b3-pipeline-trigger'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          GLUE_JOB_NAME: !Ref GlueJob
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          
+          def lambda_handler(event, context):
+              glue = boto3.client('glue')
+              job_name = os.environ['GLUE_JOB_NAME']
+              
+              # Extrair informações do evento S3
+              bucket = event['Records'][0]['s3']['bucket']['name']
+              key = event['Records'][0]['s3']['object']['key']
+              
+              # Iniciar job Glue com parâmetros
+              response = glue.start_job_run(
+                  JobName=job_name,
+                  Arguments={
+                      '--S3_SOURCE': f's3://{bucket}/{key}',
+                      '--S3_TARGET': f's3://{bucket}/refined/',
+                      '--enable-metrics': '',
+                      '--enable-continuous-cloudwatch-log': 'true'
+                  }
+              )
+              
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps({
+                      'message': 'Glue job started successfully',
+                      'jobRunId': response['JobRunId']
+                  })
+              }
+
+  # Permissão para S3 invocar Lambda
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TriggerLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub '${S3Bucket}/*'
+
+  # IAM Role para Glue Job
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub '${S3Bucket}/*'
+                  - !GetAtt S3Bucket.Arn
+
+  # Glue Database
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: 'b3_database'
+        Description: 'Database para dados da B3'
+
+  # Glue Job
+  GlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: 'b3-etl-job'
+      Role: !GetAtt GlueJobRole.Arn
+      GlueVersion: '3.0'
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
+      Command:
+        Name: glueetl
+        ScriptLocation: !Sub 's3://${BucketName}/scripts/etl_job.py'
+        PythonVersion: '3'
+      DefaultArguments:
+        '--job-bookmark-option': 'job-bookmark-enable'
+        '--enable-metrics': ''
+        '--enable-continuous-cloudwatch-log': 'true'
+        '--TempDir': !Sub 's3://${BucketName}/temp/'
+        '--DATABASE_NAME': !Ref GlueDatabase
+        '--TABLE_NAME': 'b3_refined_data'
+      MaxRetries: 1
+      Timeout: 60
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+
+  # Glue Crawler para catalogar dados refined
+  GlueCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: 'b3-refined-crawler'
+      Role: !GetAtt GlueJobRole.Arn
+      DatabaseName: !Ref GlueDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub 's3://${BucketName}/refined/'
+      Schedule:
+        ScheduleExpression: 'cron(0 1 * * ? *)'  # Diário às 01:00
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: LOG
+
+Outputs:
+  S3BucketName:
+    Description: 'Nome do bucket S3 criado'
+    Value: !Ref S3Bucket
+    Export:
+      Name: !Sub '${AWS::StackName}-S3Bucket'
+
+  LambdaFunctionArn:
+    Description: 'ARN da função Lambda'
+    Value: !GetAtt TriggerLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaArn'
+
+  GlueJobName:
+    Description: 'Nome do job Glue'
+    Value: !Ref GlueJob
+    Export:
+      Name: !Sub '${AWS::StackName}-GlueJob'
+
+  GlueDatabaseName:
+    Description: 'Nome do database Glue'
+    Value: !Ref GlueDatabase
+    Export:
+      Name: !Sub '${AWS::StackName}-GlueDatabase' 

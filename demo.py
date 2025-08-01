@@ -9,15 +9,15 @@ from src.uploader import S3Uploader
 import pandas as pd
 
 def main():
-    print("🚀 Tech Challenge B3 Big Data - SCRAPING REAL DA B3")
+    print("🚀 Tech Challenge B3 Big Data - SCRAPING DA B3")
     print("=" * 60)
     
-    # 1. Coleta de dados REAL
-    print("\n📡 1. Fazendo scraping REAL do site da B3...")
+    # 1. Coleta de dados
+    print("\n📡 1. Fazendo scraping do site da B3...")
     scraper = B3Scraper(headless=True)  # headless=False para ver o navegador
     df = scraper.fetch_with_fallback()
     
-    print(f"✅ Dados REAIS coletados: {df.shape[0]} ações do Ibovespa")
+    print(f"✅ Dados coletados: {df.shape[0]} ações do Ibovespa")
     print(f"📅 Data de referência: {df['data_ref'].iloc[0]}")
     print(f"📊 Colunas disponíveis: {list(df.columns)}")
     
@@ -50,13 +50,13 @@ def main():
             print(f"  • {tipo}: {count} ações")
     
     # 4. Salvar dados localmente
-    print(f"\n💾 4. Salvando dados REAIS...")
+    print(f"\n💾 4. Salvando dados...")
     data_hoje = dt.date.today().strftime("%Y-%m-%d")
-    filename = f"dados_b3_REAL_{data_hoje}.csv"
+    filename = f"dados_b3_{data_hoje}.csv"
     df.to_csv(filename, index=False)
     
     # Também salvar em formato Excel para melhor visualização
-    filename_excel = f"dados_b3_REAL_{data_hoje}.xlsx"
+    filename_excel = f"dados_b3_{data_hoje}.xlsx"
     df.to_excel(filename_excel, index=False)
     
     print(f"✅ Arquivos salvos:")
@@ -74,7 +74,7 @@ def main():
     # 6. Pipeline completo (simulação)
     print(f"\n🔄 6. Pipeline completo (próximos passos):")
     print("-" * 40)
-    print("1. ✅ Scraper REAL executado com Selenium")
+    print("1. ✅ Scraper executado com Selenium")
     print("2. 📦 Dados prontos para conversão Parquet")
     print("3. ☁️  Upload S3 (configurar AWS credentials)")
     print("4. ⚡ Lambda trigger (deploy necessário)")
@@ -93,8 +93,8 @@ def main():
     except Exception as e:
         print(f"⚠️  Uploader: {e}")
     
-    print(f"\n🎉 SCRAPING REAL CONCLUÍDO COM SUCESSO!")
-    print(f"📈 Coletadas {df.shape[0]} ações reais do Ibovespa da B3!")
+    print(f"\n🎉 SCRAPING CONCLUÍDO COM SUCESSO!")
+    print(f"📈 Coletadas {df.shape[0]} ações do Ibovespa da B3!")
 
 if __name__ == "__main__":
     main() 

@@ -1,36 +1,92 @@
 Tech Challenge - Big Data B3 🚀
 
-Este projeto demonstra uma arquitetura de pipeline batch para coleta e processamento de dados do pregão da B3 utilizando **SCRAPING REAL** com Selenium e AWS. Os componentes principais são:
+Este projeto demonstra uma arquitetura de pipeline batch para coleta e processamento de dados do pregão da B3 utilizando **SCRAPING** com Selenium e AWS. Os componentes principais são:
 
-- **Scraper**: coleta **DADOS REAIS** do site da B3 usando Selenium WebDriver.
+- **Scraper**: coleta **DADOS** do site da B3 usando Selenium WebDriver.
 - **S3**: armazenamento dos arquivos brutos em formato parquet particionado por data.
 - **Lambda**: acionada quando novos arquivos chegam no bucket e inicia o Job do Glue.
 - **Glue Job**: realiza transformações, salva no bucket *refined* e cataloga os dados.
 - **Athena**: consulta dos dados refinados.
 
-## 🎯 **SCRAPING REAL IMPLEMENTADO!**
+## 🎯 **SCRAPING IMPLEMENTADO!**
 
-✅ **Dados reais da B3** - Não são mais dados mockados!  
+✅ **Dados da B3** - Não são mais dados mockados!  
 ✅ **Selenium WebDriver** - Renderiza JavaScript para acessar dados dinâmicos  
-✅ **22 ações do Ibovespa** - Códigos reais como PETR4, VALE3, ITUB4, etc.  
+✅ **22 ações do Ibovespa** - Códigos como PETR4, VALE3, ITUB4, etc.  
 ✅ **Composição oficial** - Qtde. Teórica e participação percentual  
 
 ## Desenho da Arquitetura
 
 ```
-+----------+          +-------+          +---------+       +-------+
-| Scraper  +--parquet-> S3    +--event--> Lambda  +--> Glue Job |
-| REAL     |          +-------+          +---------+       +-------+
-| Selenium |                                                   |
-+----------+                                                   v
-                                                            Athena
+┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+│   🌐 B3 Site    │    │  📊 Scraper     │    │   ☁️ AWS Cloud   │
+│   (JavaScript)  │◄───┤  Selenium       │    │                  │
+└─────────────────┘    │  Chrome Driver  │    │                  │
+                       └─────────┬───────┘    │                  │
+                                 │            │                  │
+                       ┌─────────▼───────┐    │                  │
+                       │ 📄 Dados Brutos │    │                  │
+                       │ 22 ações B3     │    │                  │
+                       └─────────┬───────┘    │                  │
+                                 │            │                  │
+                                 ▼            │                  │
+    ┌────────────────────────────────────────────────────────────┼──────────────┐
+    │                                                            │              │
+    │  ┌─────────────────┐   S3 Event     ┌──────────────────┐   │              │
+    │  │   🪣 S3 Raw     │─────────────▶  │  ⚡ Lambda        │   │              │
+    │  │                 │  ObjectCreated │  Trigger         │   │              │
+    │  │ raw/date=       │                │  b3-pipeline     │   │              │
+    │  │ 2025-08-01/     │                └─────────┬────────┘   │              │
+    │  │ data.parquet    │                          │            │              │
+    │  └─────────────────┘                          ▼            │              │
+    │                                    ┌────────────────────┐  │              │
+    │                                    │  🛠️ Glue Job       │  │              │
+    │                                    │  (Visual Mode)     │  │              │
+    │                                    │                    │  │              │
+    │                                    │ A: Aggregate       │  │              │
+    │                                    │ B: Rename Fields   │  │              │
+    │                                    │ C: Date Calcs      │  │              │
+    │                                    └─────────┬──────────┘  │              │
+    │                                              │             │              │
+    │  ┌─────────────────┐                         ▼             │              │
+    │  │  🪣 S3 Refined  │              ┌────────────────────┐   │              │
+    │  │                 │◄─────────────┤  📋 Glue Catalog   │   │              │
+    │  │ refined/        │              │  b3_database       │   │              │
+    │  │ data_ref=*/     │              │  b3_refined_data   │   │              │
+    │  │ codigo_acao=*/  │              └─────────┬──────────┘   │              │
+    │  │ data.parquet    │                        │              │              │
+    │  └─────────────────┘                        ▼              │              │
+    │                                   ┌─────────────────────┐  │              │
+    │                                   │  🔍 Amazon Athena   │  │              │
+    │                                   │  SQL Queries        │  │              │
+    │                                   │  Analytics          │  │              │
+    │                                   └─────────────────────┘  │              │
+    └────────────────────────────────────────────────────────────┼──────────────┘
+                                                                 │
+                                                   ┌─────────────▼──────────────┐
+                                                   │  📊 Business Intelligence  │
+                                                   │  Dashboards & Reports      │
+                                                   └────────────────────────────┘
 ```
 
-1. O *scraper* usa **Selenium** para renderizar JavaScript e extrair dados reais da composição do Ibovespa.
-2. Os dados são salvos no bucket S3 em `raw/date=YYYY-MM-DD/`.
-3. O S3 aciona a Lambda que dispara o Glue Job.
-4. O Glue Job lê os dados brutos, executa as transformações e grava em `refined/`.
-5. O Glue cria a tabela no Glue Catalog, permitindo consultas pelo Athena.
+### 🔄 Fluxo de Dados Detalhado:
+
+1. **🌐 Scraping**: Selenium acessa o site da B3, renderiza JavaScript e extrai dados reais da composição do Ibovespa
+2. **📤 Upload**: Dados são convertidos para Parquet e salvos no S3 em `raw/date=YYYY-MM-DD/data.parquet`
+3. **⚡ Trigger**: S3 Event Notification aciona automaticamente a função Lambda
+4. **🛠️ ETL Visual**: Lambda inicia o Glue Job visual que executa as transformações:
+   - **A**: Agrupamento por código de ação + sumarização (soma, contagem)
+   - **B**: Renomeação de colunas (`Código`→`codigo_acao`, etc.)
+   - **C**: Cálculos com data (diferenças, extrações, formatações)
+5. **💾 Refined**: Dados transformados são salvos em `refined/` particionados por data e código da ação
+6. **📋 Catalogação**: Glue Job automaticamente registra tabela no Glue Catalog
+7. **🔍 Consultas**: Dados ficam disponíveis para consulta no Athena e análises de BI
+
+### 📊 Dados Processados:
+- **Entrada**: 22 ações do Ibovespa (PETR4, VALE3, ITUB4, etc.)
+- **Saída**: Dados agregados, renomeados e enriquecidos com cálculos temporais
+- **Particionamento**: Por data de referência e código da ação
+- **Formato**: Parquet otimizado para consultas analíticas
 
 O link de origem dos dados é obrigatório e está disponível [aqui](https://sistemaswebb3-listados.b3.com.br/indexPage/day/IBOV?language=pt-br).
 
@@ -53,14 +109,14 @@ source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 ```
 
-### 2. Execução com Dados REAIS
+### 2. Execução com Dados
 
-**Scraping real da B3:**
+**Scraping da B3:**
 ```bash
 python -m src.scraper
 ```
 
-**Demonstração completa com dados reais:**
+**Demonstração completa com dados:**
 ```bash
 python demo.py
 ```
@@ -72,11 +128,11 @@ from src.scraper import B3Scraper
 from src.uploader import S3Uploader
 import pandas as pd
 
-# Coletar dados REAIS da B3
+# Coletar dados da B3
 scraper = B3Scraper(headless=True)  # headless=False para ver o navegador
 df = scraper.fetch_with_fallback()
 
-print(f"Coletadas {len(df)} ações reais!")
+print(f"Coletadas {len(df)} ações!")
 print(df.head())
 
 # Para upload S3 (requer credenciais AWS)
@@ -84,9 +140,9 @@ uploader = S3Uploader(bucket="seu-bucket", prefix="raw")
 key = uploader.upload_parquet(df, pd.Timestamp.now())
 ```
 
-## 📊 Dados Coletados (REAIS)
+## 📊 Dados Coletados
 
-O scraper agora coleta dados reais da composição do Ibovespa:
+O scraper agora coleta dados da composição do Ibovespa:
 
 - **Código**: Código da ação (ex: PETR4, VALE3)
 - **Ação**: Nome da empresa
@@ -95,7 +151,7 @@ O scraper agora coleta dados reais da composição do Ibovespa:
 - **Part. (%)**: Participação percentual no índice
 - **data_ref**: Data de referência dos dados
 
-## 📈 Exemplo de Saída Real
+## 📈 Exemplo de Saída
 
 ```
 Código         Ação     Tipo Qtde. Teórica  Part. (%)
@@ -108,10 +164,10 @@ AZZA3   AZZAS 2154    ON NM   136.643.320      237.0
 
 ## 🛠️ Funcionalidades
 
-### Scraper Real (src/scraper.py)
+### Scraper (src/scraper.py)
 - **Selenium WebDriver** para renderizar JavaScript
 - **Chrome headless** para scraping automatizado
-- **Dados reais** da composição do Ibovespa
+- **Dados** da composição do Ibovespa
 - **Fallback robusto** em caso de falhas
 - **Headers apropriados** para simular navegador
 
@@ -151,7 +207,7 @@ Para usar o pipeline completo na AWS:
 ```
 tech-challenge-b3-bigdata/
 ├── src/
-│   ├── scraper.py      # Scraping REAL com Selenium
+│   ├── scraper.py      # Scraping com Selenium
 │   ├── uploader.py     # Upload para S3
 │   ├── lambda_handler.py # Função Lambda
 │   └── etl_job.py      # Job do Glue
@@ -193,11 +249,11 @@ Configure com `aws configure` ou variáveis de ambiente.
 
 ## 🎯 **Resultados Comprovados**
 
-✅ **22 ações reais** coletadas do Ibovespa  
+✅ **22 ações** coletadas do Ibovespa  
 ✅ **Dados estruturados** em CSV e Excel  
 ✅ **Pipeline completo** pronto para deploy  
 ✅ **Scraping robusto** com Selenium  
 
 ---
 
-🚀 **Teste agora:** `python demo.py` - **DADOS REAIS DA B3!**
+🚀 **Teste agora:** `python demo.py` - **DADOS DA B3!**
