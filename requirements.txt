@@ -1,0 +1,7 @@
+boto3
+pandas
+requests
+pyarrow
+lxml
+html5lib
+beautifulsoup4
