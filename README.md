@@ -10,10 +10,10 @@ Este projeto demonstra uma arquitetura de pipeline batch para coleta e processam
 
 ## 🎯 **SCRAPING IMPLEMENTADO!**
 
-✅ **Dados da B3** - Não são mais dados mockados!  
+✅ **Dados da B3** - Coleta os dados.
 ✅ **Selenium WebDriver** - Renderiza JavaScript para acessar dados dinâmicos  
 ✅ **22 ações do Ibovespa** - Códigos como PETR4, VALE3, ITUB4, etc.  
-✅ **Composição oficial** - Qtde. Teórica e participação percentual  
+✅ **Composição oficial** - Quantidade teórica e participação percentual  
 
 ## Desenho da Arquitetura
 
@@ -26,7 +26,7 @@ Este projeto demonstra uma arquitetura de pipeline batch para coleta e processam
                                  │            │                  │
                        ┌─────────▼───────┐    │                  │
                        │ 📄 Dados Brutos │    │                  │
-                       │ 22 ações B3     │    │                  │
+                       │ Ações B3        │    │                  │
                        └─────────┬───────┘    │                  │
                                  │            │                  │
                                  ▼            │                  │
@@ -247,13 +247,13 @@ pip install selenium webdriver-manager
 **Erro de credenciais AWS:**
 Configure com `aws configure` ou variáveis de ambiente.
 
-## 🎯 **Resultados Comprovados**
+## 🎯 **Resultados**
 
 ✅ **22 ações** coletadas do Ibovespa  
 ✅ **Dados estruturados** em CSV e Excel  
 ✅ **Pipeline completo** pronto para deploy  
-✅ **Scraping robusto** com Selenium  
+✅ **Scraping** com Selenium  
 
 ---
 
-🚀 **Teste agora:** `python demo.py` - **DADOS DA B3!**
+🚀 **Teste:** `python demo.py` - **DADOS DA B3!**
