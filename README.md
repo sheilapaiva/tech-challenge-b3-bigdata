@@ -15,7 +15,7 @@ Este projeto demonstra uma arquitetura de pipeline batch para coleta e processam
 ✅ **22 ações do Ibovespa** - Códigos como PETR4, VALE3, ITUB4, etc.  
 ✅ **Composição oficial** - Quantidade teórica e participação percentual  
 
-## Desenho da Arquitetura
+## Diagrama da Arquitetura
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
